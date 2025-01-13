@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Face Capture</title>
+</head>
+<body>
+    <h1>Live Video Feed</h1>
+    <video id="video" autoplay muted></video>
+    <canvas id="canvas" style="display:none;"></canvas>
+    <button id="capture-btn">Capture</button>
+    <p id="status"></p>
+
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const captureBtn = document.getElementById('capture-btn');
+        const status = document.getElementById('status');
+
+        navigator.mediaDevices.getUserMedia({ video: true})
+            .then((stream) => {
+                video.srcObject = stream;
+            })
+            .catch((err) => {
+                console.error("Error accessing camera: ", err);
+                status.innerText = "Unable to access the camera.";
+            });
+
+        captureBtn.addEventListener('click', () => {
+            const context = canvas.getContext('2d');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            // Convert the image to base64 format
+            const imageData = canvas.toDataURL('image/jpeg');
+            fetch('/capture/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({ image: imageData })
+            })
+            .then((response) => response.json())
+            .then((data) => {
+                status.innerText = data.message;
+            })
+            .catch((error) => {
+                console.error("Error:", error);
+                status.innerText = "An error occurred.";
+            });
+        });
+    </script>
+</body>
+</html>
