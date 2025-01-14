@@ -3,7 +3,8 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 import base64
 import json
-from .models import Student, Attendance
+from .models import Student, Attendance, Teacher
+from .forms import TeacherLoginForm
 from datetime import timedelta, date
 from .utils import get_face_encoding_from_frame, match_face
 import cv2
@@ -62,33 +63,76 @@ def capture_face(request):
     return JsonResponse({'message': "Invalid request method."})
 
 
+def teacher_login(request):
+    if request.method == 'POST':
+        form = TeacherLoginForm(request.POST)
+        if form.is_valid():
+            name = form.cleaned_data['name']
+            password = form.cleaned_data['password']
+            subject = form.cleaned_data['subject']
+
+            try:
+                teacher = Teacher.objects.get(name=name, password=password, subject=subject)
+                request.session['teacher_id'] = teacher.id
+                return redirect('teacher_dashboard')
+            except Teacher.DoesNotExist:
+                form.add_error(None, 'Invalid credentials')
+    else:
+        form = TeacherLoginForm()
+    return render(request, 'teacher_login.html', {'form': form})
+
+def teacher_dashboard(request):
+    teacher_id = request.session.get('teacher_id')
+    if not teacher_id:
+        return redirect('teacher_login')
+
+    teacher = Teacher.objects.get(id=teacher_id)
+    students = Student.objects.filter(subject=teacher)
+
+    return render(request, 'teacher_dashboard.html', {'teacher': teacher, 'students': students})
+
+
 def register_student(request):
-    if request. method == "POST":
+    teacher_id = request.session.get('teacher_id')
+    if not teacher_id:
+        return redirect('teacher_login')
+
+    teacher = Teacher.objects.get(id=teacher_id)
+
+    if request.method == "POST":
         name = request.POST['name']
+        rollno = request.POST['rollno']
         photo = request.FILES['photo']
         
-        # saves the image and generates facial encoding
-        student = Student(name=name, photo=photo)
+        student = Student(name=name, rollno=rollno, subject=teacher.subject, photo=photo)
         student.save()
-        encoding = get_face_encoding(student.photo.path)
-        
+
+        image_path = student.photo.path
+        frame = cv2.imread(image_path)
+        if frame is None:
+            student.delete()
+            return render(request, 'register_student.html', {'error': "Uploaded photo could not be processed."})
+
+        encoding = get_face_encoding_from_frame(frame)
         if encoding is not None:
             student.facial_encoding = encoding.tobytes()
             student.save()
-            return redirect('register_student')
+            return redirect('teacher_dashboard')
         else:
             student.delete()
-            return render(request, 'register.html', {'error': "No faces detected in the uploaded photo."})
+            return render(request, 'register_student.html', {'error': "No faces detected in the uploaded photo."})
         
-    return render(request, 'register.html')
+    return render(request, 'register_student.html', {'teacher': teacher})
 
 
 def view_attendance(request):
-    if request.method == "GET":    
-        # Filter attendance records by date range
-        today = date.today()
-        start_date = today - timedelta(days=30)
-        attendance_records = Attendance.objects.filter(date__range=[start_date, today])
-        
-        return render(request, 'attendance_records.html', {'records': attendance_records})
+    teacher_id = request.session.get('teacher_id')
+    if not teacher_id:
+        return redirect('teacher_login')
+
+    teacher = Teacher.objects.get(id=teacher_id)
+    students = Student.objects.filter(subject=teacher.subject)
+    attendance_records = Attendance.objects.filter(student__in=students).order_by('-date')
+
+    return render(request, 'attendance_records.html', {'records': attendance_records, 'teacher': teacher})
         
