@@ -2,13 +2,10 @@ import dlib
 import cv2
 import numpy as np
 from django.conf import settings
-
 detector = dlib.get_frontal_face_detector()
 shape_predictor_path = settings.SHAPE_PREDICTOR_PATH
 predictor = dlib.shape_predictor(shape_predictor_path)
 face_rec_model = dlib.face_recognition_model_v1(settings.FACE_REC_MODEL_PATH)
-
-
 def get_face_encoding_from_frame(frame):
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     faces = detector(gray)
@@ -21,8 +18,6 @@ def get_face_encoding_from_frame(frame):
     landmarks = predictor(gray, face)
     encoding = np.array(face_rec_model.compute_face_descriptor(frame, landmarks))
     return encoding
-
-
 def match_face(encoding, database_encodings, threshold=0.6):
     best_match = None
     min_distance = float("inf")
@@ -36,4 +31,3 @@ def match_face(encoding, database_encodings, threshold=0.6):
             best_match = db_encoding
             
     return best_match is not None
-    

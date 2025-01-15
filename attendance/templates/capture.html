@@ -37,13 +37,17 @@
         main {
             text-align: center;
             padding: 20px;
+            position: relative; /* To position the button at the bottom */
         }
         video {
             border: 2px solid #ddd;
             border-radius: 5px;
         }
         button {
-            margin-top: 10px;
+            position: fixed; /* Absolute positioning */
+            bottom: 20px; /* 20px from the bottom */
+            left: 50%; /* Center horizontally */
+            transform: translateX(-50%); /* Adjust for perfect centering */
             padding: 10px 20px;
             font-size: 16px;
             background-color: #007bff;
